@@ -1,0 +1,18 @@
+.DS_Store
+node_modules
+lib/*.json
+.nyc_output
+coverage
+api/.env
+package-lock.json
+.vscode
+!.vscode/extensions.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
