@@ -1,14 +1,18 @@
-import { fileURLToPath, URL } from 'node:url'
+import { fileURLToPath, URL } from 'node:url';
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vitest/config'; // Imports `defineConfig` from Vitest
 
-import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
-
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue()], // Enables Vue support
+
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@': fileURLToPath(new URL('./src', import.meta.url)), // ✅ Allows `@` to map to `src/`
     },
   },
-})
+
+  test: {
+    environment: 'jsdom', // Required for Vue component testing
+    globals: true, // Allows using `describe`, `it`, `expect` globally without imports
+  },
+});

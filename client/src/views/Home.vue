@@ -92,7 +92,7 @@
       },
     },
     async mounted() {
-      this.getData();
+      await this.getData();
 
       // Note: set interval to show different values
       setInterval(() => {
@@ -112,12 +112,11 @@
       async getData() {
         try {
           this.emissionData = await this.dataStore.getAllEmissionData();
-
+          
           const years = Object.keys(this.emissionData);
-
           if (years.length) {
-            this.minYear = years[0];
-            this.maxYear = years[years.length - 1];
+            this.minYear = +years[0];
+            this.maxYear = +years[years.length - 1];
             this.currentYear = this.minYear;
           }
         } catch (err) {

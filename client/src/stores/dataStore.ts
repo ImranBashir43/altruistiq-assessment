@@ -8,12 +8,17 @@ const axiosInstance = axios.create({
 });
 
 export const useDataStore = defineStore('data', {
-  state: () => ({}),
-
+  state: () => ({
+    emissionData: {},
+  }),
   actions: {
+    setEmissionData(data: Record<number, any>) {
+      this.emissionData = data; // Store the fetched emission data
+    },
     async getAllEmissionData() {
+      
       const { data } = await axiosInstance.get<Emissions>(`countries/emissions-per-country`);
-
+      this.setEmissionData(data.data);
       return data.data;
     },
   },

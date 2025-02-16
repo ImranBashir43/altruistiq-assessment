@@ -13,7 +13,8 @@
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "express-rate-limit": "^7.3.1"
+    "express-rate-limit": "^7.3.1",
+    "redis": "^4.7.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.24.7",
@@ -24,6 +25,7 @@
     "@babel/preset-env": "^7.24.7",
     "@babel/register": "^7.24.6",
     "@faker-js/faker": "*",
+    "dotenv": "^16.4.7",
     "mocha": "^11.1.0",
     "nodemon": "^3.1.4",
     "nyc": "^17.0.0",

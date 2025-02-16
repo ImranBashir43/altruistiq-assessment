@@ -1,45 +1,81 @@
 import footprintApi from './../helpers/footprint.helper';
-import { transformData, fetchData, sortByHighestTotal } from './../helpers/seeds.helper';
-import { SKIPPED_COUNTRIES } from './../configs/vars';
+import { transformData, processBatch, sortByHighestTotal } from './../helpers/seeds.helper';
+import { SKIPPED_COUNTRIES, REDIS_COUNTRIES_EXPIRY } from './../configs/vars';
+import redisClient from './../cache/countries.cache'; // Import Redis client
+
+
+const BATCH_SIZE = 10; // Adjust based on API rate limits
+const BATCH_DELAY = 1000; // Delay between batches
 
 /**
  * Prepare emissions data by country.
  * 
- * Fetches data for all countries from the footprint API, processes it, and returns the results
+ * Fetches data for all countries in parallel batches, processes it, and returns the results.
  * 
- * @returns {Promise<Object>} The emissions data organized by country.
+ * @returns {Promise<Object>} The emissions data organized by year.
  */
 export const prepareEmissionsByCountry = async () => {
   const dataByCountry = {};
 
-  // Fetch all countries data from the footprint API
-  const countries = await footprintApi.getCountries();
+  try {
+     // Generate a cache key based on skipped countries
+    const skippedKey = `emissions:skipped:${SKIPPED_COUNTRIES.sort().join(',')}`;
 
-  const promises = []
+    // Check Redis cache before processing
+    const cachedData = await redisClient.get(skippedKey);
 
-  // Create a request for each country
-  for (const country of countries) {
-    const countryName = country.countryName.toLowerCase().trim();
-    
-    if (!SKIPPED_COUNTRIES.includes(countryName) && !dataByCountry[countryName]) {
-      promises.push(fetchData(country.countryCode));
+    if (cachedData) {
+      console.log(`Cache hit for skipped countries: ${skippedKey}`);
+      return JSON.parse(cachedData);
     }
+
+    // Fetch all countries data from the footprint API
+    const countries = await footprintApi.getCountries();
+    const validCountries = countries.filter(country =>
+      !SKIPPED_COUNTRIES.includes(country.countryName.toLowerCase().trim())
+    );
+
+    console.log(`Starting to process ${validCountries.length} countries...`);
+
+    // Process countries in batches
+    for (let i = 0; i < validCountries.length; i += BATCH_SIZE) {
+      const batch = validCountries.slice(i, i + BATCH_SIZE);
+      const batchResults = await processBatch(batch);
+
+      // Process batch results
+      batchResults.forEach(countryData => {
+        if (countryData && countryData.length > 0) {
+          const countryName = countryData[0].countryName.toLowerCase().trim();
+          dataByCountry[countryName] = countryData;
+        }
+      });
+
+      console.log(`Processed ${Math.min(i + BATCH_SIZE, validCountries.length)}/${validCountries.length} countries`);
+
+      // Delay between batches to respect rate limits
+      if (i + BATCH_SIZE < validCountries.length) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      }
+    }
+
+    console.log('Completed processing all countries');
+
+    // Transform and sort the data
+    let emissionsPerCountry = transformData(dataByCountry);
+    emissionsPerCountry = await sortByHighestTotal(emissionsPerCountry);
+     // Store the final data in Redis cache
+    await redisClient.set(skippedKey, JSON.stringify(emissionsPerCountry), {
+      EX: REDIS_COUNTRIES_EXPIRY
+    });
+
+    console.log(`Data cached with key: ${skippedKey}`);
+
+    return emissionsPerCountry;
+  } catch (error) {
+    console.error('Error preparing emissions data:', error);
+    throw error;
   }
-
-  let results = await Promise.allSettled(promises);
-
-  results = results
-    .filter(result => result.status === 'fulfilled' && result.value.length)
-    .map(result => result.value);
-
-  // Key by country name, transform and sort the data
-  results.forEach(r => {
-    const countryName = r[0].countryName.toLowerCase().trim()
-    dataByCountry[countryName] = r;
-  })
-
-  let emissionsPerCountry = transformData(dataByCountry);
-  emissionsPerCountry = await sortByHighestTotal(emissionsPerCountry);
-
-  return emissionsPerCountry;
 };
+
+
+
