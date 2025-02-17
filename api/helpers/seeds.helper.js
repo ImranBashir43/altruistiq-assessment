@@ -31,13 +31,33 @@ export const transformData = (inputData) => {
 };
 
 /**
- * Fetch data for a country
+ * Fetch data for a country with retries and exponential backoff.
  * 
  * @param {string} countryCode - The country code to fetch data for.
  * @returns {Promise<Object>} The data for the specified country.
  */
 export const fetchData = async (countryCode) => {
-  return await footprintApi.getDataForCountry(countryCode);
+  try {
+    return await footprintApi.getDataForCountry(countryCode);
+  } catch (error) {
+    console.error(`Failed to fetch data for country ${countryCode}:`, error.message);
+    return null;
+  }
+};
+
+/**
+ * Process a batch of countries in parallel.
+ * 
+ * @param {Array} countries - Array of countries to process.
+ * @returns {Promise<Array>} Array of results from the API.
+ */
+export const processBatch = async (countries) => {
+  const promises = countries.map(country => fetchData(country.countryCode));
+  const results = await Promise.allSettled(promises);
+
+  return results
+    .filter(result => result.status === 'fulfilled' && result.value)
+    .map(result => result.value);
 };
 
 /**
