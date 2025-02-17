@@ -64,44 +64,63 @@ Make sure to work in a new branch so you can create a PR.
 
 ## BUG REPORT 1: Chart is not always showing country emissions
 
-When loading the frontend, the chart does not always render. The behavior is very flaky, sometimes it renders and sometimes it does not.
 
-Reproduce:
 
-- Load the frontend via http://localhost:5173
-- Refresh the page until you find it doesn't show the chart
+## root cause 
 
-Acceptance Criteria:
+the chart rendering logic did not wait for the data to be fully loaded before attempting to render.
+the setInterval in the mounted lifecycle hook started immediately, causing race conditions.
 
-- Fix when the user loads the frontend, the chart shows countries and their emissions _immediately_
-- Write unit test(s)
-- All tests, backend and frontend, should pass
-- Write a post mortem explaining what the root cause was and how you approached the fix
+
+## fix approach  
+
+added a isDataLoaded flag to ensure the chart only renders when the data is fully loaded.
+improved error handling in seeds.controller.js to return valid data even if some requests fail.
+added a loading state to the UI to inform the user that data is being fetched.
+ensured the setInterval only starts after the data is loaded.
+
+
+## outcome 
+
+The chart now renders consistently when the data is available.
+The UI provides feedback to the user during data loading.
 
 ## BUG REPORT 2: Chart is not showing all countries
 
-You have fixed showing the frontend, but now it seems the chart shows only 8-10 countries depending on the year (unless you fixed this already with bug 1). Make sure that all countries are shown.
 
-Acceptance Criteria:
+## root cause 
 
-- A total of 269 countries and their emissions should be shown _immediately_ when loading the frontend in the browser
-- Write unit test(s)
-- All tests, backend and frontend, should pass
-- Write a post mortem explaining what the root cause was and how you approached the fix
+parallel requests issue in prepareEmissionsByCountry requests data for all countries in parallel using Promise.allSettled().
+if too many requests fail or get rejected, only a subset of countries is processed.
+if axios.get() in getDataForCountry() gets rate-limited by the API, it may return partial or empty responses.
+
+
+## fix approach   
+
+batch execution instead of all at once to avoid rate limiting
+modify prepareEmissionsByCountry() to retry failed requests instead of skipping them.
+Rate-limiting issues are handled, preventing missing data.
+retries with exponential backoff before failing completely.
+
+
+## outcome 
+
+no countries will be omitted due to API failures or rate limits.
+
 
 ## BUG REPORT 3: Years are not looping
 
-The chart should loop through the years, so when it reaches the final year it should start again at the first year in the data set. But the years keep increasing and never loop back to the first year. This causes the chart to render blank as there is not data for year greater than 2025.
+## root cause 
+loop condition only resets if currentYear === maxYear
+years were stored as string
 
-Acceptance Criteria:
 
-- Should loop through years correctly
-- When last year in the dataset is rendered, should render the first year again
-- Write unit test
-- All tests, backend and frontend, should pass
-- Write a post mortem explaining what the root cause was and how you approached the fix
+## fix approach   
 
-# Deliver your result
+used loop condition currentYear >= maxYear
+converted years to numbers
 
-Please provide a git repository with your code and send us the url.
-Your code changes should be in its own branch, and a PR should be created so we can review the changes and run them easily it.
+
+
+## outcome 
+years reset to minYear after reaching maxYear
